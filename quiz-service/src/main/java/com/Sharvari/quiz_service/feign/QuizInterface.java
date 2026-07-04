@@ -1,5 +1,7 @@
 package com.Sharvari.quiz_service.feign;
 
+import com.Sharvari.quiz_service.dto.QuestionWrapper;
+import com.Sharvari.quiz_service.dto.Response;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
