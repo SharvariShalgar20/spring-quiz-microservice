@@ -1,5 +1,7 @@
 package com.Sharvari.question_service.controller;
 
+import com.Sharvari.question_service.dto.QuestionWrapper;
+import com.Sharvari.question_service.dto.Response;
 import com.Sharvari.question_service.model.Question;
 import com.Sharvari.question_service.service.QuestionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,5 +34,15 @@ public class QuestionController {
     @PostMapping("/create-question")
     public Question addQuestion(@RequestBody Question question) {
         return questionService.addQuestion(question);
+    }
+
+    @GetMapping("/get-Questions")
+    public List<QuestionWrapper> getQuestionsFromId(@RequestBody List<Integer> ids) {
+        return questionService.getQuestionsFromId(ids);
+    }
+
+    @GetMapping("/get-Score")
+    public int getScore(@RequestBody List<Response> responses) {
+        return questionService.getScore(responses);
     }
 }
