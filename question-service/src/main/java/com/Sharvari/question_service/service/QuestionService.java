@@ -1,10 +1,14 @@
 package com.Sharvari.question_service.service;
 
+import com.Sharvari.question_service.dto.QuestionWrapper;
+import com.Sharvari.question_service.dto.Response;
 import com.Sharvari.question_service.model.Question;
 import com.Sharvari.question_service.repository.QuestionRepository;
+import com.thoughtworks.xstream.mapper.Mapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,6 +31,31 @@ public class QuestionService {
 
     public List<Integer> getQuestionsForQuiz(String category, int numQuestion) {
         List<Question> questions = questionRepository.findRandomQuestionsByCategory(category, numQuestion);
+
         return questions.stream().map(Question::getId).toList();
+    }
+
+    public List<QuestionWrapper> getQuestionsFromId(List<Integer> ids) {
+        List<Question> questions = questionRepository.findByIdIn(ids);
+        List<QuestionWrapper> result = new ArrayList<>();
+
+        for(Question q : questions) {
+            result.add(new QuestionWrapper(q.getId(), q.getQuestionTitle(), q.getOption1(), q.getOption2(), q.getOption3(), q.getOption4()));
+        }
+
+        return result;
+    }
+
+    public int getScore(List<Response> responses) {
+        int score = 0;
+
+        for(Response r : responses) {
+            Question q = questionRepository.findById(r.getId()).orElse(null);
+            if(q != null && q.getRightAnswer().equalsIgnoreCase(r.getResponse())){
+                score++;
+            }
+        }
+
+        return score;
     }
 }
