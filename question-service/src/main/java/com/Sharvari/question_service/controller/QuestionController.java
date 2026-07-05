@@ -36,12 +36,12 @@ public class QuestionController {
         return questionService.addQuestion(question);
     }
 
-    @GetMapping("/get-Questions")
+    @PostMapping("/get-Questions")
     public List<QuestionWrapper> getQuestionsFromId(@RequestBody List<Integer> ids) {
         return questionService.getQuestionsFromId(ids);
     }
 
-    @GetMapping("/get-Score")
+    @PostMapping("/get-Score")
     public int getScore(@RequestBody List<Response> responses) {
         return questionService.getScore(responses);
     }

@@ -18,9 +18,9 @@ public class QuizController {
     @PostMapping("create/{category}/{numQuestion}/{title}")
     public Integer createQuiz(
             @PathVariable String category,
-            @PathVariable int numQ,
+            @PathVariable int numQuestion,
             @PathVariable String title) {
-        return quizService.createQuiz(category, numQ, title);
+        return quizService.createQuiz(category, numQuestion, title);
     }
 
     @GetMapping("get/{quizId}")

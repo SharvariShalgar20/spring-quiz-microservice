@@ -16,9 +16,9 @@ public interface QuizInterface {
     @GetMapping("question/generate/{category}/{numQuestion}")
     List<Integer> getQuestionsForQuiz(@PathVariable String category, @PathVariable int numQuestion);
 
-    @PostMapping("question/getQuestions")
+    @PostMapping("question/get-Questions")
     List<QuestionWrapper> getQuestionsFromId(@RequestBody List<Integer> ids);
 
-    @PostMapping("question/getScore")
+    @PostMapping("question/get-Score")
     Integer getScore(@RequestBody List<Response> responses);
 }
