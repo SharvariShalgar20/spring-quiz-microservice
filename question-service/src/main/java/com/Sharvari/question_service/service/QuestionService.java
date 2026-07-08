@@ -5,12 +5,14 @@ import com.Sharvari.question_service.dto.Response;
 import com.Sharvari.question_service.model.Question;
 import com.Sharvari.question_service.repository.QuestionRepository;
 import com.thoughtworks.xstream.mapper.Mapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 public class QuestionService {
 
@@ -31,7 +33,9 @@ public class QuestionService {
 
     public List<Integer> getQuestionsForQuiz(String category, int numQuestion) {
         List<Question> questions = questionRepository.findRandomQuestionsByCategory(category, numQuestion);
-
+        if (questions.size() < numQuestion) {
+            log.warn("Requested {} questions for category '{}' but only found {}", numQuestion, category, questions.size());
+        }
         return questions.stream().map(Question::getId).toList();
     }
 
@@ -51,8 +55,14 @@ public class QuestionService {
 
         for(Response r : responses) {
             Question q = questionRepository.findById(r.getId()).orElse(null);
-            if(q != null && q.getRightAnswer().equalsIgnoreCase(r.getResponse())){
+            if (q == null) {
+                log.warn("No question found for id: {}", r.getId());
+                continue;
+            }
+            if (q.getRightAnswer().equalsIgnoreCase(r.getResponse())) {
                 score++;
+            } else {
+                log.debug("Wrong answer for question id {}: expected '{}', got '{}'", r.getId(), q.getRightAnswer(), r.getResponse());
             }
         }
 
