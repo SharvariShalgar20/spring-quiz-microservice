@@ -5,6 +5,8 @@ import com.Sharvari.quiz_service.dto.Response;
 import com.Sharvari.quiz_service.service.QuizService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +18,11 @@ public class QuizController {
 
     @Autowired
     private QuizService quizService;
+
+    private String getCurrentUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : null;
+    }
 
     @PostMapping("create/{category}/{numQuestion}/{title}")
     public Integer createQuiz(
@@ -34,7 +41,10 @@ public class QuizController {
 
     @PostMapping("submit/{quizId}")
     public Integer submitQuiz(@PathVariable Integer quizId, @RequestBody List<Response> responses) {
-        log.info("Submitting {} answers for quiz id: {}", responses.size(), quizId);
-        return quizService.calculateResult(quizId, responses);
+        String username = getCurrentUsername();
+        log.info("User '{}' submitting {} answers for quiz id: {}", username, responses.size(), quizId);
+        Integer score = quizService.calculateResult(quizId, responses, username);
+        log.info("Quiz {} scored: {}", quizId, score);
+        return score;
     }
 }
