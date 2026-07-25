@@ -2,6 +2,7 @@ package com.Sharvari.quiz_service.controller;
 
 import com.Sharvari.quiz_service.dto.QuestionWrapper;
 import com.Sharvari.quiz_service.dto.Response;
+import com.Sharvari.quiz_service.model.QuizAttempt;
 import com.Sharvari.quiz_service.service.QuizService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,5 +47,11 @@ public class QuizController {
         Integer score = quizService.calculateResult(quizId, responses, username);
         log.info("Quiz {} scored: {}", quizId, score);
         return score;
+    }
+
+    @GetMapping("history")
+    public List<QuizAttempt> getMyHistory() {
+        String username = getCurrentUsername();
+        return quizService.getMyHistory(username);
     }
 }

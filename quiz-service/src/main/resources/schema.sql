@@ -6,3 +6,4 @@ SHOW tables;
 
 select * from quiz;
 select * from quiz_question;
+select * from quiz_attempt;

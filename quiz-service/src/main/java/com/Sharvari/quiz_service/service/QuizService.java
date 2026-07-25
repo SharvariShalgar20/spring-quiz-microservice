@@ -80,4 +80,9 @@ public class QuizService {
 
         return score;
     }
+
+    public List<QuizAttempt> getMyHistory(String username) {
+        log.info("Fetching quiz history for user: {}", username);
+        return quizAttemptRepository.findByUsernameOrderBySubmittedAtDesc(username);
+    }
 }
