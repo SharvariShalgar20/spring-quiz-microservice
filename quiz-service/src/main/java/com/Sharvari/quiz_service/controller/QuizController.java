@@ -54,4 +54,9 @@ public class QuizController {
         String username = getCurrentUsername();
         return quizService.getMyHistory(username);
     }
+
+    @GetMapping("leaderboard/{quizId}")
+    public List<QuizAttempt> getLeaderboard(@PathVariable Integer quizId) {
+        return quizService.getLeaderboard(quizId);
+    }
 }
