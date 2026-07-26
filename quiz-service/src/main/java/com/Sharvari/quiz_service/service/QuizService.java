@@ -85,4 +85,9 @@ public class QuizService {
         log.info("Fetching quiz history for user: {}", username);
         return quizAttemptRepository.findByUsernameOrderBySubmittedAtDesc(username);
     }
+
+    public List<QuizAttempt> getLeaderboard(Integer quizId) {
+        log.info("Fetching leaderboard for quiz id: {}", quizId);
+        return quizAttemptRepository.findByQuizIdOrderByScoreDesc(quizId);
+    }
 }

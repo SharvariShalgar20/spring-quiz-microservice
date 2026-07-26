@@ -24,7 +24,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/quiz/get/**").permitAll()
+                        .requestMatchers("/quiz/get/**", "/quiz/leaderboard/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/quiz/create", "/quiz/submit/**", "/quiz/history").hasAnyRole("USER", "ADMIN")
                         .anyRequest().authenticated()
