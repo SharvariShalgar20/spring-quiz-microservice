@@ -7,6 +7,9 @@ import com.Sharvari.question_service.service.QuestionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import com.Sharvari.question_service.service.MinioService;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -17,6 +20,9 @@ public class QuestionController {
 
     @Autowired
     private QuestionService questionService;
+
+    @Autowired
+    private MinioService minioService;
 
     @GetMapping("/all-Questions")
     public List<Question> getAllQuestion() {
@@ -52,5 +58,14 @@ public class QuestionController {
     public int getScore(@RequestBody List<Response> responses) {
         log.info("Calculating score for {} responses", responses.size());
         return questionService.getScore(responses);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping(value = "/upload-image", consumes = "multipart/form-data")
+    public String uploadImage(@RequestParam("file") MultipartFile file) throws Exception {
+        log.info("Uploading image: {}", file.getOriginalFilename());
+        String imageUrl = minioService.uploadFile(file);
+        log.info("Image uploaded, URL: {}", imageUrl);
+        return imageUrl;
     }
 }
