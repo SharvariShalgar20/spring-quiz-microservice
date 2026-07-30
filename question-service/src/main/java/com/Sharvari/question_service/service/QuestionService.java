@@ -44,7 +44,7 @@ public class QuestionService {
         List<QuestionWrapper> result = new ArrayList<>();
 
         for(Question q : questions) {
-            result.add(new QuestionWrapper(q.getId(), q.getQuestionTitle(), q.getOption1(), q.getOption2(), q.getOption3(), q.getOption4()));
+            result.add(new QuestionWrapper(q.getId(), q.getQuestionTitle(), q.getOption1(), q.getOption2(), q.getOption3(), q.getOption4(), q.getImageUrl()));
         }
 
         return result;
