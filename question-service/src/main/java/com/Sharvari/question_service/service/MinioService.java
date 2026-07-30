@@ -57,4 +57,14 @@ public class MinioService {
 
         return endpoint + "/" + bucketName + "/" + fileName;
     }
+
+    public void deleteFile(String fileUrl) throws Exception {
+        String fileName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+        minioClient.removeObject(
+                io.minio.RemoveObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(fileName)
+                        .build());
+        log.info("Deleted file '{}' from MinIO", fileName);
+    }
 }

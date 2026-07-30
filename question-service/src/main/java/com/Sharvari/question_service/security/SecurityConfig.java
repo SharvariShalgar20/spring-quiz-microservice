@@ -24,6 +24,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers("/question/all-Questions", "/question/by-category/**", "/question/generate/**").permitAll()
                         .requestMatchers("/question/get-Questions", "/question/get-Score").permitAll() // internal Feign calls from quiz-service
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
