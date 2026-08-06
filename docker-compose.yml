@@ -1,0 +1,173 @@
+services:
+
+  # ---------- Service Registry ----------
+  service-registry:
+    build: ./service-registry
+    container_name: service-registry
+    ports:
+      - "8761:8761"
+    networks:
+      - quiz-network
+
+  # ---------- MinIO ----------
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - quiz-network
+
+  # ---------- Question Service ----------
+  question-mysql:
+    image: mysql:8.0
+    container_name: question-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: your_mysql_password
+      MYSQL_DATABASE: question_service_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - question-mysql-data:/var/lib/mysql
+    networks:
+      - quiz-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  question-service:
+    build: ./question-service
+    container_name: question-service
+    depends_on:
+      question-mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://question-mysql:3306/question_service_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: your_mysql_password
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+    ports:
+      - "8080:8080"
+    networks:
+      - quiz-network
+
+  # ---------- Quiz Service ----------
+  quiz-mysql:
+    image: mysql:8.0
+    container_name: quiz-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: your_mysql_password
+      MYSQL_DATABASE: quiz_service_db
+    ports:
+      - "3308:3306"
+    volumes:
+      - quiz-mysql-data:/var/lib/mysql
+    networks:
+      - quiz-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  quiz-service:
+    build: ./quiz-service
+    container_name: quiz-service
+    depends_on:
+      quiz-mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+      question-service:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://quiz-mysql:3306/quiz_service_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: your_mysql_password
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+    ports:
+      - "8081:8081"
+    networks:
+      - quiz-network
+
+  # ---------- Auth Service ----------
+  auth-mysql:
+    image: mysql:8.0
+    container_name: auth-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: your_mysql_password
+      MYSQL_DATABASE: auth_service_db
+    ports:
+      - "3309:3306"
+    volumes:
+      - auth-mysql-data:/var/lib/mysql
+    networks:
+      - quiz-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    depends_on:
+      auth-mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://auth-mysql:3306/auth_service_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: your_mysql_password
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+    ports:
+      - "8082:8082"
+    networks:
+      - quiz-network
+
+  # ---------- API Gateway ----------
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    depends_on:
+      service-registry:
+        condition: service_started
+      question-service:
+        condition: service_started
+      quiz-service:
+        condition: service_started
+      auth-service:
+        condition: service_started
+    environment:
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+    ports:
+      - "8060:8060"
+    networks:
+      - quiz-network
+
+networks:
+  quiz-network:
+    driver: bridge
+
+volumes:
+  question-mysql-data:
+  quiz-mysql-data:
+  auth-mysql-data:
+  minio-data:
