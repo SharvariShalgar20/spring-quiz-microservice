@@ -24,8 +24,8 @@ public class MinioService {
     @Value("${minio.bucket-name}")
     private String bucketName;
 
-    @Value("${minio.endpoint}")
-    private String endpoint;
+    @Value("${minio.public-endpoint}")
+    private String publicEndpoint;
 
     @PostConstruct
     public void init() throws Exception {
@@ -55,7 +55,7 @@ public class MinioService {
 
         log.info("Uploaded file '{}' to MinIO bucket '{}'", fileName, bucketName);
 
-        return endpoint + "/" + bucketName + "/" + fileName;
+        return publicEndpoint + "/" + bucketName + "/" + fileName;
     }
 
     public void deleteFile(String fileUrl) throws Exception {
