@@ -138,7 +138,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: your_mysql_password
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
     ports:
-      - "8082:8082"
+      - "8082:8083"
     networks:
       - quiz-network
 
