@@ -19,4 +19,5 @@ target/
 
 # Env files (don't commit DB passwords)
 .env
+*.env
 application.properties
