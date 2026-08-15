@@ -2,7 +2,9 @@ package com.Sharvari.quiz_service.service;
 
 import com.Sharvari.quiz_service.dto.QuestionWrapper;
 import com.Sharvari.quiz_service.dto.Response;
+import com.Sharvari.quiz_service.event.QuizSubmittedEvent;
 import com.Sharvari.quiz_service.feign.QuizInterface;
+import com.Sharvari.quiz_service.kafka.KafkaProducerService;
 import com.Sharvari.quiz_service.model.Quiz;
 import com.Sharvari.quiz_service.model.QuizAttempt;
 import com.Sharvari.quiz_service.model.QuizQuestion;
@@ -28,6 +30,9 @@ public class QuizService {
 
     @Autowired
     private QuizAttemptRepository quizAttemptRepository;
+
+    @Autowired
+    private KafkaProducerService kafkaProducerService;
 
     public Integer createQuiz(String category, int numQ, String title) {
         List<Integer> questionIds = quizInterface.getQuestionsForQuiz(category, numQ);
@@ -67,16 +72,22 @@ public class QuizService {
         Integer score = quizInterface.getScore(responses);
         log.info("QUESTION-SERVICE returned score: {}", score);
 
+        LocalDateTime now = LocalDateTime.now();
+
         QuizAttempt attempt = new QuizAttempt();
         attempt.setUsername(username);
         attempt.setQuizId(quizId);
         attempt.setQuizTitle(quiz.getTitle());
         attempt.setScore(score);
         attempt.setTotalQuestions(responses.size());
-        attempt.setSubmittedAt(LocalDateTime.now());
+        attempt.setSubmittedAt(now);
 
         quizAttemptRepository.save(attempt);
         log.info("Saved quiz attempt for user '{}' on quiz {}: {}/{}", username, quizId, score, responses.size());
+
+        QuizSubmittedEvent event = new QuizSubmittedEvent(
+                username, quizId, quiz.getTitle(), score, responses.size(), now);
+        kafkaProducerService.publishQuizSubmitted(event);
 
         return score;
     }

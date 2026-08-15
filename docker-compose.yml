@@ -42,7 +42,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   question-service:
     build: ./question-service
@@ -61,6 +62,8 @@ services:
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
     ports:
       - "8080:8080"
     networks:
@@ -83,7 +86,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   quiz-service:
     build: ./quiz-service
@@ -122,7 +126,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   auth-service:
     build: ./auth-service
