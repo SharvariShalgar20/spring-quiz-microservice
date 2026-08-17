@@ -1,0 +1,1 @@
+CREATE DATABASE analytics_service_db;
