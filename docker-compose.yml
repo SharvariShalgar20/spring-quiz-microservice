@@ -1,5 +1,27 @@
 services:
 
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - quiz-network
+
+
   # ---------- Service Registry ----------
   service-registry:
     build: ./service-registry
@@ -42,8 +64,7 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 20
-      start_period: 60s
+      retries: 10
 
   question-service:
     build: ./question-service
@@ -62,8 +83,6 @@ services:
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_ENDPOINT: http://localhost:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
     ports:
       - "8080:8080"
     networks:
@@ -86,8 +105,7 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 20
-      start_period: 60s
+      retries: 10
 
   quiz-service:
     build: ./quiz-service
@@ -98,6 +116,8 @@ services:
       service-registry:
         condition: service_started
       question-service:
+        condition: service_started
+      kafka:
         condition: service_started
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://quiz-mysql:3306/quiz_service_db
@@ -126,8 +146,7 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 20
-      start_period: 60s
+      retries: 10
 
   auth-service:
     build: ./auth-service
@@ -147,6 +166,64 @@ services:
     networks:
       - quiz-network
 
+  # ---------- Notification Service ----------
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    depends_on:
+      kafka:
+        condition: service_started
+      service-registry:
+        condition: service_started
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+    ports:
+      - "8084:8084"
+    networks:
+      - quiz-network
+
+  # ---------- Analytics Service ----------
+  analytics-mysql:
+    image: mysql:8.0
+    container_name: analytics-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: analytics_service_db
+    ports:
+      - "3310:3306"
+    volumes:
+      - analytics-mysql-data:/var/lib/mysql
+    networks:
+      - quiz-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: analytics-service
+    depends_on:
+      analytics-mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      service-registry:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://analytics-mysql:3306/analytics_service_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
+    ports:
+      - "8085:8085"
+    networks:
+      - quiz-network
+
   # ---------- API Gateway ----------
   api-gateway:
     build: ./api-gateway
@@ -159,6 +236,8 @@ services:
       quiz-service:
         condition: service_started
       auth-service:
+        condition: service_started
+      analytics-service:
         condition: service_started
     environment:
       EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-registry:8761/eureka/
@@ -175,4 +254,5 @@ volumes:
   question-mysql-data:
   quiz-mysql-data:
   auth-mysql-data:
+  analytics-mysql-data:
   minio-data:
