@@ -64,7 +64,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   question-service:
     build: ./question-service
@@ -105,7 +106,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   quiz-service:
     build: ./quiz-service
@@ -146,7 +148,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   auth-service:
     build: ./auth-service
