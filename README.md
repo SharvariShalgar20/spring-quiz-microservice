@@ -1,460 +1,218 @@
-# Spring Quiz Microservice
+# Quiz App Microservices
 
-A distributed, microservices-based quiz application built using **Java, Spring Boot, Spring Cloud, MySQL, MinIO, and Docker**.
+A full-featured quiz application built to learn and demonstrate core microservices architecture patterns using Spring Boot and Spring Cloud — service discovery, API gateway routing, inter-service communication, stateless JWT authentication with RBAC, object storage, and event-driven communication via Kafka.
 
-The application follows a microservice architecture where authentication, question management, quiz management, service discovery, and API routing are separated into independent services.
+## Architecture Overview
 
----
+```
+                              ┌─────────────────┐
+                              │  API Gateway     │  :8060
+                              │  (Spring Cloud    │
+                              │   Gateway MVC)    │
+                              └─────────┬─────────┘
+                                        │
+        ┌───────────────┬──────────────┼──────────────┬───────────────┐
+        ▼               ▼              ▼               ▼               ▼
+┌───────────────┐ ┌────────────┐ ┌────────────┐ ┌───────────────┐ ┌────────────────┐
+│ auth-service   │ │ question-  │ │ quiz-      │ │ notification- │ │ analytics-      │
+│ :8082/8083     │ │ service    │ │ service    │ │ service       │ │ service         │
+│                │ │ :8080      │ │ :8081      │ │ :8084         │ │ :8085           │
+└───────┬────────┘ └─────┬──────┘ └─────┬──────┘ └───────┬───────┘ └────────┬────────┘
+        │                │              │                │                  │
+        ▼                ▼              ▼                └────────┬─────────┘
+  ┌───────────┐    ┌───────────┐  ┌───────────┐                   ▼
+  │ auth-mysql │    │ question- │  │ quiz-mysql │            ┌──────────┐
+  └───────────┘    │ mysql     │  └─────┬──────┘            │  Kafka    │
+                    └─────┬─────┘        │                   │ (KRaft)   │
+                          │              │  publishes         │  :9092    │
+                          ▼              │  QuizSubmittedEvent └────┬─────┘
+                    ┌───────────┐         └───────────────────────►│
+                    │  MinIO    │                                   │
+                    │  :9000/1  │              consumed by ─────────┴──► notification-service
+                    └───────────┘                                       analytics-service ──► analytics-mysql
 
-## Architecture
-
-The system consists of the following services:
-
-```text
-                         ┌──────────────────┐
-                         │      Client      │
-                         │  Web / Postman   │
-                         └────────┬─────────┘
-                                  │
-                                  ▼
-                       ┌─────────────────────┐
-                       │     API Gateway     │
-                       │      :8060          │
-                       └──────────┬──────────┘
-                                  │
-              ┌───────────────────┼───────────────────┐
-              │                   │                   │
-              ▼                   ▼                   ▼
-     ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-     │  Auth Service   │ │ Question Service│ │   Quiz Service  │
-     │     :8082       │ │      :8080      │ │      :8081      │
-     └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
-              │                   │                   │
-              ▼                   ▼                   ▼
-        ┌───────────┐       ┌───────────┐       ┌───────────┐
-        │ Auth MySQL│       │Question   │       │ Quiz MySQL│
-        │   :3309   │       │ MySQL     │       │   :3308   │
-        └───────────┘       │   :3307   │       └───────────┘
-                            └─────┬─────┘
-                                  │
-                                  ▼
-                            ┌───────────┐
-                            │   MinIO   │
-                            │ Object    │
-                            │ Storage   │
-                            │ :9000     │
-                            └───────────┘
-
-                       ┌─────────────────────┐
-                       │   Eureka Server     │
-                       │       :8761         │
-                       │ Service Discovery   │
-                       └─────────────────────┘
+                    ┌─────────────────────┐
+                    │  Service Registry    │  :8761  (Eureka)
+                    │  All services         │
+                    │  register here        │
+                    └─────────────────────┘
 ```
 
-### Service Communication
+Every service registers with **Eureka** for service discovery. Inter-service HTTP calls (`quiz-service → question-service`) go through **Feign**, load-balanced automatically across any registered instances. All client traffic enters through the **API Gateway**, which resolves routes via Eureka rather than hardcoded hosts.
 
-```text
-Client
-   │
-   ▼
-API Gateway
-   │
-   ├──► Auth Service
-   │
-   ├──► Question Service
-   │          │
-   │          └──► MinIO
-   │
-   └──► Quiz Service
-              │
-              └──► Question Service
-                         │
-                         └──► Question MySQL
-```
+## Services
 
----
+| Service | Port | Responsibility | Database |
+|---|---|---|---|
+| `service-registry` | 8761 | Eureka service discovery | — |
+| `api-gateway` | 8060 | Single entry point, routes to all services | — |
+| `auth-service` | 8082/8083 | User registration, login, JWT issuance | `auth_service_db` |
+| `question-service` | 8080 | Question CRUD, image upload, scoring logic | `question_service_db` |
+| `quiz-service` | 8081 | Quiz creation, submission, history, leaderboard | `quiz_service_db` |
+| `notification-service` | 8084 | Kafka consumer — simulated notifications on quiz submission | — |
+| `analytics-service` | 8085 | Kafka consumer — aggregated quiz stats | `analytics_service_db` |
+| `minio` | 9000 (API), 9001 (console) | S3-compatible object storage for question images | — |
+| `kafka` | 9092 | Event broker (KRaft mode, no ZooKeeper) | — |
+
+Each service owns its own database — no service reaches into another service's data directly. All cross-service communication happens over HTTP (Feign) or asynchronously via Kafka events.
+
+## Tech Stack
+
+- **Java 17**, **Spring Boot 3.5.x**, **Maven**
+- **Spring Cloud 2025.0.3** — Eureka (service discovery), OpenFeign (inter-service HTTP calls), Gateway MVC (routing)
+- **Spring Security + JWT** (`jjwt` 0.12.6) — stateless authentication, role-based access control
+- **Spring Data JPA + MySQL 8.0** — one database per service
+- **Spring Kafka** — event-driven communication (`apache/kafka`, KRaft mode)
+- **MinIO** — S3-compatible object storage for question images
+- **Springdoc OpenAPI 2.8.5** — Swagger UI on every REST-exposing service
+- **Docker + Docker Compose** — full containerized orchestration
+- **Lombok**, **SLF4J** — boilerplate reduction, structured logging
 
 ## Features
 
-### Authentication Service
+- **Service discovery & load balancing** — multiple instances of any service can run simultaneously; Feign + Eureka distribute requests automatically
+- **API Gateway** — single entry point (`:8060`) for all client traffic
+- **JWT authentication** — stateless, signed with HS256, validated independently by each service (no central auth check per request)
+- **Role-based access control (RBAC)** — `ADMIN` vs `USER` permissions enforced per-endpoint
+- **Image upload for questions** — stored in MinIO (S3-compatible), only the URL persisted in MySQL
+- **Quiz history & leaderboard** — per-user attempt history, per-quiz leaderboard ranking
+- **Event-driven architecture** — quiz submissions publish a Kafka event consumed independently by both a notification service and an analytics service, with zero coupling back to `quiz-service`
+- **Swagger/OpenAPI docs on every service** — `auth-service`, `question-service`, `quiz-service`, and `analytics-service` all expose interactive, annotated API documentation
+- **Fully containerized** — one `docker-compose up` boots the entire system
 
-- User registration and authentication
-- Role-based users
-- MySQL-based persistence
-- Authentication-related APIs
+## Prerequisites
 
-### Question Service
+- Docker & Docker Compose
+- (For local, non-Docker development only) Java 17, Maven, MySQL 8.0, a running Kafka broker, MinIO
 
-- Create and manage quiz questions
-- Retrieve all questions
-- Filter questions by category
-- Retrieve questions by IDs
-- Calculate quiz scores
-- Store question images using MinIO object storage
+## Running the Project
 
-### Quiz Service
+### 1. Configure environment variables
 
-- Create quizzes based on categories and difficulty
-- Fetch quiz questions
-- Hide correct answers from quiz responses
-- Maintain question snapshots for quizzes
-- Submit quiz answers
-- Calculate user scores
+Create a `.env` file in the project root:
 
-### API Gateway
+```dotenv
+MYSQL_ROOT_PASSWORD=your_mysql_password
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=your_minio_password
+```
 
-- Single entry point for client requests
-- Dynamic routing to microservices
-- Integrates with Eureka Service Discovery
-- Load balancing support
+### 2. Start everything
 
-### Service Registry
+```bash
+docker-compose up --build
+```
 
-- Netflix Eureka Server
-- Dynamic service registration and discovery
-- Allows services to communicate without hardcoded service locations
+First run takes several minutes (building 7 service images, initializing 4 MySQL databases). Subsequent runs are much faster.
 
-### Object Storage
+### 3. Verify
 
-- MinIO is used for storing question images
-- Images are stored separately from the relational database
-- Question Service communicates with MinIO through its S3-compatible API
+- Eureka dashboard: `http://localhost:8761` — confirm all services are registered
+- MinIO console: `http://localhost:9001` — login with your `.env` credentials
 
----
+## API Documentation (Swagger)
 
-## Technology Stack
+Every REST-exposing service has interactive Swagger UI, fully annotated with `@Tag`, `@Operation`, and `@Parameter` descriptions:
 
-| Technology | Purpose |
+| Service | Swagger UI |
 |---|---|
-| Java 17 | Programming Language |
-| Spring Boot | Microservice Development |
-| Spring Cloud | Microservice Infrastructure |
-| Spring Cloud Gateway | API Gateway |
-| Netflix Eureka | Service Discovery |
-| OpenFeign | Inter-Service Communication |
-| Spring Cloud LoadBalancer | Client-side Load Balancing |
-| Spring Data JPA | Database Access |
-| MySQL 8 | Relational Database |
-| MinIO | Object Storage |
-| Docker | Containerization |
-| Docker Compose | Multi-container Orchestration |
-| Maven | Build & Dependency Management |
-| SLF4J | Application Logging |
+| `question-service` | `http://localhost:8080/swagger-ui.html` |
+| `quiz-service` | `http://localhost:8081/swagger-ui.html` |
+| `auth-service` | `http://localhost:8082/swagger-ui.html` (check your compose port mapping — may be `:8083`) |
+| `analytics-service` | `http://localhost:8085/swagger-ui.html` |
 
----
+`notification-service` is a Kafka-consumer-only service with no REST endpoints, so it has no Swagger UI.
+
+Raw OpenAPI specs are available at `/v3/api-docs` on each of the four services above.
+
+## Core API Flow (via Gateway, port 8060)
+
+```
+1. Register / Login
+   POST /auth/register   { username, password, role }
+   POST /auth/login      { username, password }
+   → returns a JWT
+
+2. Create a question (ADMIN only, optional image)
+   POST /question/create-question-with-image
+   Authorization: Bearer <admin token>
+   multipart/form-data: question (JSON part), file (image, optional)
+
+3. Create a quiz
+   POST /quiz/create?category=X&numQ=N&title=Y
+   Authorization: Bearer <token>
+
+4. Take the quiz
+   GET /quiz/get/{quizId}          → questions without right answers
+
+5. Submit answers
+   POST /quiz/submit/{quizId}
+   Authorization: Bearer <token>
+   [{ id, response }, ...]
+   → returns score, saves attempt, publishes Kafka event
+
+6. View history / leaderboard
+   GET /quiz/history                    (Authorization required)
+   GET /quiz/leaderboard/{quizId}        (public)
+
+7. View analytics (populated asynchronously via Kafka)
+   GET /analytics/quiz/{quizId}
+   GET /analytics/all
+```
+
+## Security Model
+
+- Passwords hashed with **BCrypt**, never stored in plain text
+- JWTs signed with a shared **HS256 secret** across `auth-service`, `question-service`, and `quiz-service` — each service validates signatures independently, without calling `auth-service` per request
+- **Public endpoints**: viewing questions/quizzes, leaderboards
+- **Authenticated endpoints**: creating quizzes, submitting answers, viewing history
+- **ADMIN-only endpoints**: creating/uploading questions
+
+## Database-per-Service
+
+Each service owns an isolated MySQL database — no shared schemas, no cross-service joins. Services that need data from another domain (e.g., `quiz-service` needing question content) fetch it over HTTP via Feign, never by querying another service's database directly.
+
+## Event-Driven Flow (Kafka)
+
+```
+quiz-service (producer)
+    │  publishes QuizSubmittedEvent on every submission
+    ▼
+Kafka topic: quiz-submissions
+    │
+    ├──► notification-service   (logs a simulated notification)
+    └──► analytics-service      (persists rolling stats: attempts, avg score, high score)
+```
+
+Both consumers use **separate consumer groups**, so each independently receives every event — this is the fan-out pattern that lets you add more consumers later without touching `quiz-service` at all.
 
 ## Project Structure
 
-```text
-spring-quiz-microservice/
-│
-├── api-gateway/
-│   └── ...
-│
-├── auth-service/
-│   └── ...
-│
-├── question-service/
-│   └── ...
-│
-├── quiz-service/
-│   └── ...
-│
-├── service-registry/
-│   └── ...
-│
+```
+quiz-app-microservices/
+├── .env
+├── .gitignore
 ├── docker-compose.yml
-│
-└── README.md
+├── service-registry/
+├── api-gateway/
+├── auth-service/
+├── question-service/
+├── quiz-service/
+├── notification-service/
+└── analytics-service/
 ```
 
----
+Each service directory contains its own `Dockerfile`, `pom.xml`, and standard Maven project structure.
 
-## Running the Project with Docker
+## Known Limitations / Future Work
 
-The project uses **Docker Compose** to run the complete microservice infrastructure.
+- No refresh-token flow — JWTs expire after 1 hour with no renewal path
+- No global `@ControllerAdvice` exception handling yet — some errors still return raw Spring stack traces instead of clean JSON
+- No circuit breaker / retry logic (Resilience4j) — a downstream service outage currently surfaces as a raw Feign exception
+- No distributed tracing (Zipkin/Micrometer) — hard to visualize a request's full path across services
+- No CI/CD pipeline
+- No frontend — this is currently a backend-only system, tested via Postman/Swagger UI
 
-Docker Compose starts:
+## License
 
-- Eureka Service Registry
-- API Gateway
-- Authentication Service
-- Question Service
-- Quiz Service
-- Three independent MySQL databases
-- MinIO Object Storage
-
-### Prerequisites
-
-Install:
-
-- [Docker](https://www.docker.com/)
-- Docker Compose
-- Git
-
-You do **not** need to install MySQL locally when using the Docker setup.
-
----
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/SharvariShalgar20/spring-quiz-microservice.git
-```
-
-```bash
-cd spring-quiz-microservice
-```
-
----
-
-### 2. Environment Variables
-
-Sensitive credentials should **not** be committed to GitHub.
-
-Create a `.env` file in the root directory:
-
-```env
-MYSQL_ROOT_PASSWORD=your_secure_mysql_password
-
-MINIO_ROOT_USER=minioadmin
-MINIO_ROOT_PASSWORD=your_secure_minio_password
-```
-
-
-Add the following to `.gitignore`:
-
-```gitignore
-.env
-*.env
-```
-
-For the public repository, use placeholder values or environment variables instead of real credentials.
-
----
-
-### 3. Docker Compose Configuration
-
-The Docker Compose setup creates an isolated Docker network:
-
-```text
-quiz-network
-```
-
-All microservices communicate with each other using their **Docker service names** instead of `localhost`.
-
-For example:
-
-```text
-question-service → http://question-mysql:3306
-quiz-service     → http://quiz-mysql:3306
-auth-service     → http://auth-mysql:3306
-question-service → http://minio:9000
-```
-
-This is important because inside Docker:
-
-```text
-localhost
-```
-
-refers to the **current container**, not another container.
-
----
-
-### 4. Start the Application
-
-From the project root:
-
-```bash
-docker compose up --build
-```
-
-To run everything in the background:
-
-```bash
-docker compose up --build -d
-```
-
-Check running containers:
-
-```bash
-docker compose ps
-```
-
-View logs:
-
-```bash
-docker compose logs -f
-```
-
-View logs for a particular service:
-
-```bash
-docker compose logs -f question-service
-```
-
-Stop the application:
-
-```bash
-docker compose down
-```
-
-To stop containers and remove their associated volumes:
-
-```bash
-docker compose down -v
-```
-
-> ⚠️ `docker compose down -v` deletes the Docker volumes containing the MySQL and MinIO data.
-
----
-
-## Service Ports
-
-| Service | Port |
-|---|---:|
-| Eureka Service Registry | `8761` |
-| API Gateway | `8060` |
-| Question Service | `8080` |
-| Quiz Service | `8081` |
-| Auth Service | `8082` |
-| MinIO API | `9000` |
-| MinIO Console | `9001` |
-| Question MySQL | `3307` |
-| Quiz MySQL | `3308` |
-| Auth MySQL | `3309` |
-
----
-
-## Database Architecture
-
-Each microservice has its **own database**.
-
-```text
-Auth Service
-     │
-     ▼
-auth_service_db
-
-
-Question Service
-     │
-     ▼
-question_service_db
-
-
-Quiz Service
-     │
-     ▼
-quiz_service_db
-```
-
-This follows the **database-per-service** principle of microservice architecture.
-
-The services do not share a single MySQL database.
-
----
-
-## MinIO Object Storage
-
-MinIO is used to store question images.
-
-```text
-Question Service
-       │
-       │ S3 API
-       ▼
-     MinIO
-       │
-       ▼
-question-images bucket
-```
-
-MinIO provides an S3-compatible object storage API and is used to store files separately from relational data.
-
-### MinIO Console
-
-After starting Docker Compose, the MinIO console is available at:
-
-```text
-http://localhost:9001
-```
-
-Use the credentials configured through environment variables.
-
----
-
-### Creating the Question Images Bucket
-
-Create a bucket called:
-
-```text
-question-images
-```
-
-The bucket can be configured through the MinIO Console or MinIO Client (`mc`).
-
-For applications where images need to be directly accessible by clients, configure **read-only/public download access** rather than public write access.
-
-Example:
-
-```bash
-mc anonymous set download local/question-images
-```
-
-This allows objects to be downloaded while preventing anonymous users from uploading or deleting objects.
-
----
-
-## Inter-Service Communication
-
-The project uses **OpenFeign** for communication between services.
-
-For example:
-
-```text
-Quiz Service
-     │
-     │ OpenFeign
-     ▼
-Question Service
-```
-
-The Quiz Service can request questions from the Question Service without hardcoding the Question Service's container IP address.
-
-Eureka provides service discovery:
-
-```text
-Quiz Service
-     │
-     ▼
-Eureka Server
-     │
-     ▼
-Question Service
-```
-
----
-## Architecture Principles
-
-This project demonstrates several important microservice architecture concepts:
-
-- **Independent services**
-- **Database per service**
-- **Service discovery**
-- **API Gateway pattern**
-- **Inter-service communication**
-- **Client-side load balancing**
-- **Containerization**
-- **Object storage**
-- **Centralized Docker network**
-- **Environment-based configuration**
-- **Independent service deployment**
-- **JWT authentication**
-
----
-# 👩‍💻 Author
-
-**Sharvari Shalgar**
+Personal learning project.
